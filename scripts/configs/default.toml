@@ -1,0 +1,61 @@
+name = "test_symbac_width_0.9_length_2"
+
+[simulation]
+trench_length=15
+trench_width=1.15
+cell_max_length=2 #6 long cells # 1.65 short cells
+cell_width= 0.90 #1 long cells # 0.95 short cells
+sim_length = 100
+pix_mic_conv = 0.065
+gravity=0
+phys_iters=15
+max_length_var = 0
+width_var = 0
+lysis_p = 0
+save_dir="./tmp/"
+resize_amount = 3
+
+[phase_psf]
+radius = 50 
+wavelength = 0.75 
+NA = 1.2 
+n = 1.3 
+resize_amount = 3 
+pix_mic_conv = 0.065 
+apo_sigma = 20 
+mode="phase contrast"
+condenser = "Ph3"
+
+[fluo_psf]
+radius = 50 
+wavelength = 0.75 
+NA = 1.2 
+n = 1.3 
+resize_amount = 3 
+pix_mic_conv = 0.065 
+apo_sigma = 20 
+mode="simple fluo"
+condenser = "Ph3"
+
+[camera]
+baseline=100 
+sensitivity=2.9
+dark_noise=8
+
+[fluo_image_stats]
+media_mean = 0.1
+media_var = 0.05
+cell_mean = 0.8
+cell_var = 0.1
+device_mean = 0.1
+device_var = 0.05
+
+[training_data]
+sample_amount=0.05
+randomise_hist_match=false
+randomise_noise_match=false
+burn_in=40
+n_samples = 10
+save_dir="./symbac_video_test_output/"
+in_series=true
+prefix="videotest"

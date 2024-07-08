@@ -22,6 +22,7 @@ setup(
         "tqdm",
         "pandas",
         "natsort",
+        "jupyter-client<7",
         "jupyterlab",
         "ipywidgets",
         "joblib",
