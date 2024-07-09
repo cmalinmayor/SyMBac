@@ -52,37 +52,22 @@ def make_psf(config):
     return kernel
 
 
-def make_renderer(config, simulation, psf, camera) -> Renderer:
+def make_renderer(image_config, renderer_config, simulation, psf, camera) -> Renderer:
     real_image = np.zeros((256, 46))
     renderer = Renderer(
         simulation=simulation, PSF=psf, real_image=real_image, camera=camera
     )
-    means = (config["media_mean"], config["cell_mean"], config["device_mean"])
+    means = (image_config["media_mean"], image_config["cell_mean"], image_config["device_mean"])
     means_array = np.array(means)
-    variances = (config["media_var"], config["cell_var"],  config["device_var"])
+    variances = (image_config["media_var"], image_config["cell_var"], image_config["device_var"])
     vars_array = np.array(variances)
     renderer.image_params = (*means, means_array, *variances, vars_array)
-    renderer.params = interactive(
-            renderer.generate_test_comparison,
-            {'manual': True},
-            media_multiplier=(-300, 300, 1),
-            cell_multiplier=(-30, 30, 0.01),
-            device_multiplier=(-300, 300, 1),
-            sigma=(renderer.PSF.min_sigma, renderer.PSF.min_sigma * 20, renderer.PSF.min_sigma / 20),
-            scene_no=(0, len(renderer.simulation.OPL_scenes) - 1, 1),
-            noise_var=(0, 0.01, 0.0001),
-            match_fourier=[False],
-            match_histogram=[False],
-            match_noise=[False],
-            debug_plot=fixed(True),
-            defocus=(0, 20, 0.1),
-            halo_top_intensity = (0,1,0.1), 
-            halo_bottom_intensity = (0,1,0.1),
-            halo_start = (0,1,0.11),
-            halo_end = (0,1,0.1),
-            random_real_image=fixed(None),
-        )
+    renderer.params = renderer_config
+    renderer.params["match_fourier"] = False
+    renderer.params["match_histogram"] = False
+    renderer.params["match_noise"] = False
     return renderer
+
 
 if __name__ == "__main__":
     config = toml.load("configs/default.toml")
@@ -91,6 +76,12 @@ if __name__ == "__main__":
     phase_psf = make_psf(config["phase_psf"])
     fluo_psf = make_psf(config["fluo_psf"])
     camera = Camera(**config["camera"])
-    fluo_renderer: Renderer = make_renderer(config["fluo_image_stats"], simulation, fluo_psf, camera)
-    fluo_renderer.generate_training_data(**config["training_data"])
-    
+    # fluo_renderer: Renderer = make_renderer(
+    #     config["fluo_image_stats"], config["renderer"], simulation, fluo_psf, camera
+    # )
+    # fluo_renderer.generate_training_data(**config["training_data"])
+
+    phase_renderer: Renderer = make_renderer(
+        config["phase_image_stats"], config["renderer"], simulation, fluo_psf, camera
+    )
+    phase_renderer.generate_training_data(**config["training_data"])

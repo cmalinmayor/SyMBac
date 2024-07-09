@@ -743,12 +743,12 @@ class Renderer:
                 match_histogram=match_histogram,
                 match_noise=match_noise,
                 debug_plot=False,
-                noise_var=self.params.kwargs["noise_var"],
-                defocus=self.params.kwargs["defocus"],
-                halo_top_intensity = self.params.kwargs["halo_top_intensity"], 
-                halo_bottom_intensity = self.params.kwargs["halo_bottom_intensity"],
-                halo_start = self.params.kwargs["halo_start"],
-                halo_end = self.params.kwargs["halo_end"],
+                noise_var=self.params["noise_var"],
+                defocus=self.params["defocus"],
+                halo_top_intensity = self.params["halo_top_intensity"], 
+                halo_bottom_intensity = self.params["halo_bottom_intensity"],
+                halo_start = self.params["halo_start"],
+                halo_end = self.params["halo_end"],
                 random_real_image = random_real_image
             )
 
@@ -800,33 +800,33 @@ class Renderer:
                 series_len = (self.simulation.sim_length) - burn_in
                 n_series_to_sim = int(np.ceil(n_samples/series_len))
 
-                media_multipliers = np.repeat([np.random.uniform(1 - sample_amount, 1 + sample_amount) * self.params.kwargs["media_multiplier"] for _ in range(n_series_to_sim)], series_len)
-                cell_multipliers = np.repeat([np.random.uniform(1 - sample_amount, 1 + sample_amount) * self.params.kwargs["cell_multiplier"] for _ in range(n_series_to_sim)], series_len)
-                device_multipliers = np.repeat([np.random.uniform(1 - sample_amount, 1 + sample_amount) * self.params.kwargs["device_multiplier"] for _ in range(n_series_to_sim)], series_len)
-                sigmas = np.repeat([np.random.uniform(1 - sample_amount, 1 + sample_amount)* self.params.kwargs["sigma"] for _ in range(n_series_to_sim)], series_len)
+                media_multipliers = np.repeat([np.random.uniform(1 - sample_amount, 1 + sample_amount) * self.params["media_multiplier"] for _ in range(n_series_to_sim)], series_len)
+                cell_multipliers = np.repeat([np.random.uniform(1 - sample_amount, 1 + sample_amount) * self.params["cell_multiplier"] for _ in range(n_series_to_sim)], series_len)
+                device_multipliers = np.repeat([np.random.uniform(1 - sample_amount, 1 + sample_amount) * self.params["device_multiplier"] for _ in range(n_series_to_sim)], series_len)
+                sigmas = np.repeat([np.random.uniform(1 - sample_amount, 1 + sample_amount)* self.params["sigma"] for _ in range(n_series_to_sim)], series_len)
                 scene_nos =  np.arange(burn_in, self.simulation.sim_length).tolist() * n_series_to_sim
 
             else:
-                media_multipliers = [np.random.uniform(1 - sample_amount, 1 + sample_amount) * self.params.kwargs["media_multiplier"] for _ in range(n_samples)]
-                cell_multipliers = [np.random.uniform(1 - sample_amount, 1 + sample_amount) * self.params.kwargs["cell_multiplier"] for _ in range(n_samples)]
-                device_multipliers = [np.random.uniform(1 - sample_amount, 1 + sample_amount) * self.params.kwargs["device_multiplier"] for _ in range(n_samples)]
-                sigmas = [np.random.uniform(1 - sample_amount, 1 + sample_amount) * self.params.kwargs["sigma"] for _ in range(n_samples)]
+                media_multipliers = [np.random.uniform(1 - sample_amount, 1 + sample_amount) * self.params["media_multiplier"] for _ in range(n_samples)]
+                cell_multipliers = [np.random.uniform(1 - sample_amount, 1 + sample_amount) * self.params["cell_multiplier"] for _ in range(n_samples)]
+                device_multipliers = [np.random.uniform(1 - sample_amount, 1 + sample_amount) * self.params["device_multiplier"] for _ in range(n_samples)]
+                sigmas = [np.random.uniform(1 - sample_amount, 1 + sample_amount) * self.params["sigma"] for _ in range(n_samples)]
                 scene_nos = np.random.randint(low = burn_in, high = self.simulation.sim_length - 2, size = n_samples)
 
             if randomise_hist_match:
                 hist_match_bools = np.random.choice([True, False], size = n_samples)
             else:
-                hist_match_bools = [self.params.kwargs["match_histogram"]] * n_samples
+                hist_match_bools = [self.params["match_histogram"]] * n_samples
 
             if randomise_noise_match:
                 noise_match_bools = np.random.choice([True, False], size = n_samples)
             else:
-                noise_match_bools = [self.params.kwargs["match_noise"]] * n_samples 
+                noise_match_bools = [self.params["match_noise"]] * n_samples 
 
             if randomise_fourier_match:
                 fourier_match_bools = np.random.choice([True, False], size = n_samples)
             else:
-                fourier_match_bools = [self.params.kwargs["match_fourier"]] * n_samples
+                fourier_match_bools = [self.params["match_fourier"]] * n_samples
 
 
             render_sample_parameters = {

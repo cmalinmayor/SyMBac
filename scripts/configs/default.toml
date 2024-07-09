@@ -50,6 +50,14 @@ cell_var = 0.1
 device_mean = 0.1
 device_var = 0.05
 
+[phase_image_stats]
+media_mean = 0.9
+media_var = 0.05
+cell_mean = 0.3
+cell_var = 0.1
+device_mean = 0.05
+device_var = 0.01
+
 [training_data]
 sample_amount=0.05
 randomise_hist_match=false
@@ -59,3 +67,15 @@ n_samples = 10
 save_dir="./symbac_video_test_output/"
 in_series=true
 prefix="videotest"
+
+[renderer]
+media_multiplier=75
+cell_multiplier=1.7
+device_multiplier=29
+sigma=8.85
+defocus=3
+halo_top_intensity = 1 
+halo_bottom_intensity = 1
+halo_start = 0
+halo_end = 1
+noise_var = 0
