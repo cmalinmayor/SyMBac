@@ -8,6 +8,7 @@ from pathlib import Path
 import zarr
 import numpy as np
 from ipywidgets import interactive, fixed
+from PIL import Image
 
 
 def save_simulation_timeseries_zarr(scene, mask, outfile):
@@ -53,7 +54,11 @@ def make_psf(config):
 
 
 def make_renderer(image_config, renderer_config, simulation, psf, camera) -> Renderer:
-    real_image = np.zeros((256, 46))
+    #real_image = np.zeros((256, 46))
+    filepath = "/groups/funke/home/sistaa/code/SyMBac/scripts/images/220510_bsub_degron_rap_BF_raw.tif"
+    real_image = Image.open(filepath, 'r')
+    real_image = np.array(real_image)
+    #print(real_image.size)
     renderer = Renderer(
         simulation=simulation, PSF=psf, real_image=real_image, camera=camera
     )
