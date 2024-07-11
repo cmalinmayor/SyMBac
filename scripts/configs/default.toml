@@ -1,4 +1,4 @@
-name = "test_symbac_width_0.9_length_2"
+name = "video_one"
 
 [simulation]
 trench_length=15
@@ -12,7 +12,7 @@ phys_iters=15
 max_length_var = 0
 width_var = 0
 lysis_p = 0
-save_dir="./tmp/"
+save_dir="./unnecessary/"
 resize_amount = 3
 
 [phase_psf]
@@ -62,7 +62,7 @@ device_var = 0.01
 sample_amount=0.05
 burn_in=0
 n_samples = 10
-save_dir="./symbac_video_test_output/"
+save_dir="/nrs/funke/data/darts/synthetic_data/"
 in_series=false
 n_jobs = 1
 

@@ -95,26 +95,24 @@ def generate_video_sample(
     cell_multiplier,
     device_multiplier,
     sigma,
-    start_scene,
+    burn_in,
     num_scenes,
     match_histogram,
     match_noise,
     match_fourier,
     mask_dtype=np.uint16,
 ):
-    zarr_group = zarr.open_group(zarr.DirectoryStore(Path(save_dir) / output_zarr, dimension_separator="/"), "a", path = f"scene_{scene_no}")
+    zarr_group = zarr.open_group(zarr.DirectoryStore(Path(save_dir) / output_zarr, dimension_separator="/"), "w")
     
     image_ds = zarr_group.create_dataset(output_group, shape=(num_scenes, *renderer.real_image.shape), dtype=np.uint16) 
     mask_ds = zarr_group.create_dataset("mask", shape=(num_scenes, *renderer.real_image.shape), dtype=mask_dtype) 
 
-    zarr_group["mask"] = mask
-    for scene_no in range(start_scene, start_scene + num_scenes):
+    for scene_no in range(burn_in, burn_in + num_scenes):
         image, mask, _ = renderer.generate_test_comparison(
             media_multiplier=media_multiplier,
             cell_multiplier=cell_multiplier,
             device_multiplier=device_multiplier,
             sigma=sigma,
-            scene_no=scene_no,
             match_fourier=match_fourier,
             match_histogram=match_histogram,
             match_noise=match_noise,
@@ -129,54 +127,9 @@ def generate_video_sample(
         )
 
         image = skimage.img_as_uint(rescale_intensity(image))
-        image_ds[scene_no - start_scene] = image
+        image_ds[scene_no - burn_in] = image
         mask = mask.astype(mask_dtype)
-        mask_ds[scene_no - start_scene] = mask
-    
-
-def generate_image_sample(
-    renderer,
-    params,
-    save_dir,
-    output_zarr,
-    output_group,
-    media_multiplier,
-    cell_multiplier,
-    device_multiplier,
-    sigma,
-    scene_no,
-    match_histogram,
-    match_noise,
-    match_fourier,
-    mask_dtype=np.uint16,
-):
-
-    image, mask, _ = renderer.generate_test_comparison(
-        media_multiplier=media_multiplier,
-        cell_multiplier=cell_multiplier,
-        device_multiplier=device_multiplier,
-        sigma=sigma,
-        scene_no=scene_no,
-        match_fourier=match_fourier,
-        match_histogram=match_histogram,
-        match_noise=match_noise,
-        debug_plot=False,
-        noise_var=params["noise_var"],
-        defocus=params["defocus"],
-        halo_top_intensity=params["halo_top_intensity"],
-        halo_bottom_intensity=params["halo_bottom_intensity"],
-        halo_start=params["halo_start"],
-        halo_end=params["halo_end"],
-        random_real_image=None,
-    )
-
-    image = skimage.img_as_uint(rescale_intensity(image))
-    zarr_group = zarr.open_group(zarr.DirectoryStore(Path(save_dir) / output_zarr, dimension_separator="/"), "a", path = f"scene_{scene_no}")
-    zarr_group[output_group] = image
-
-    mask = mask.astype(mask_dtype)
-    zarr_group["mask"] = mask
-
+        mask_ds[scene_no - burn_in] = mask
 
 def generate_data_from_simulation(
     simulation,
@@ -186,12 +139,10 @@ def generate_data_from_simulation(
     burn_in,
     n_jobs,
     n_samples,
-    scene_nos,
     save_dir,
     output_zarr,  # just the filename
     output_group,
     in_series=False,
-    seed=False,
     mask_dtype=np.uint8,
 ):
     """
@@ -216,11 +167,6 @@ def generate_data_from_simulation(
         Optional arg, if specified then the numpy random seed will be set for the rendering, allows reproducible rendering results.
 
     """
-    n_samples = len(scene_nos)
-
-    
-    if seed:
-        np.random.seed(seed)
 
     if in_series:
         series_len = (simulation.sim_length) - burn_in
@@ -280,54 +226,24 @@ def generate_data_from_simulation(
             np.random.uniform(1 - sample_amount, 1 + sample_amount) * params["sigma"]
             for _ in range(n_samples)
         ]
-        
+ 
 
-    hist_match_bools = [params["match_histogram"]] * n_samples
-    noise_match_bools = [params["match_noise"]] * n_samples
-    fourier_match_bools = [params["match_fourier"]] * n_samples
-
-    render_sample_parameters = {
-        "n_samples": n_samples,
-        "media_multipliers": np.array(media_multipliers),
-        "cell_multipliers": np.array(cell_multipliers),
-        "device_multipliers": np.array(device_multipliers),
-        "sigmas": np.array(sigmas),
-        "scene_nos": np.array(scene_nos),
-        "hist_match_bools": np.array(hist_match_bools),
-        "noise_match_bools": np.array(noise_match_bools),
-        "fourier_match_bools": np.array(fourier_match_bools),
-    }
-
-    Parallel(n_jobs=n_jobs, backend="threading")(
-        delayed(generate_image_sample)(
+    generate_video_sample(
             renderer,
             params,
             save_dir,
             output_zarr,
             output_group,
-            media_multiplier,
-            cell_multiplier,
-            device_multiplier,
-            sigma,
-            scene_no,
-            match_histogram,
-            match_noise,
-            match_fourier,
+            params["media_multiplier"],
+            params["cell_multiplier"],
+            params["device_multiplier"],
+            params["sigma"],
+            burn_in,
+            n_samples,
+            params["match_histogram"],
+            params["match_noise"],
+            params["match_fourier"],
             mask_dtype=mask_dtype,
-        )
-        for media_multiplier, cell_multiplier, device_multiplier, sigma, scene_no, match_histogram, match_noise, match_fourier in tqdm(
-            zip(
-                render_sample_parameters["media_multipliers"],
-                render_sample_parameters["cell_multipliers"],
-                render_sample_parameters["device_multipliers"],
-                render_sample_parameters["sigmas"],
-                render_sample_parameters["scene_nos"],
-                render_sample_parameters["hist_match_bools"],
-                render_sample_parameters["noise_match_bools"],
-                render_sample_parameters["fourier_match_bools"],
-            ),
-            desc="Rendering synthetic images",
-        )
     )
 
 
@@ -346,18 +262,12 @@ if __name__ == "__main__":
     )
     output_zarr = config["name"] + ".zarr"
     
-    scene_nos = np.random.randint(
-        low = burn_in, high=simulation.sim_length - 2, size = n_samples
-    )
-    
     generate_data_from_simulation(
         simulation,
         phase_renderer,
         phase_renderer.params,
         output_zarr = output_zarr,  # just the filename
         output_group = "phase",
-        scene_nos = scene_nos,
-        seed=False,
         mask_dtype=np.uint8,
         **config["training_data"],
     )

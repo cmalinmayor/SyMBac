@@ -26,47 +26,11 @@ from SyMBac.pySHINE import cart2pol, sfMatch, lumMatch
 from skimage.filters import threshold_multiotsu
 import random
 
-if importlib.util.find_spec("cupy") is None:
-    from scipy.signal import convolve2d as cuconvolve
-
-    njobs = -1
-    warnings.warn("Could not load CuPy for SyMBac, are you using a GPU? Defaulting to CPU convolution.")
-
-
-    def convolve_rescale(image, kernel, rescale_factor, rescale_int):
-        """
-        Convolves an image with a kernel, and rescales it to the correct size.
-
-        Parameters
-        ----------
-        image : numpy.ndarray
-            The image
-        kernel : 2D numpy array
-            The kernel
-        rescale_factor : int
-            Typically 1/resize_amount. So 1/3 will scale the image down by a factor of 3. We do this because we render the image and kernel at high resolution, so that we can do the convolution at high resolution.
-        rescale_int : bool
-            If True, rescale the intensities between 0 and 1 and return a float32 numpy array of the convolved downscaled image.
-
-        Returns
-        -------
-        outupt : 2D numpy array
-            The output of the convolution rescale operation
-        """
-
-        output = cuconvolve(image, kernel, mode="same")
-        # output = output.get()
-        output = rescale(output, rescale_factor, anti_aliasing=False)
-
-        if rescale_int:
-            output = rescale_intensity(output.astype(np.float32), out_range=(0, 1))
-        return output
-else:
+try:
     import cupy as cp
     from cupyx.scipy.ndimage import convolve as cuconvolve
 
     njobs = 1
-
 
     def convolve_rescale(image, kernel, rescale_factor, rescale_int):
         """
@@ -97,6 +61,41 @@ else:
             output = rescale_intensity(output.astype(np.float32), out_range=(0, 1))
         return output
 
+except:
+    from scipy.signal import convolve2d as cuconvolve
+
+    njobs = -1
+    warnings.warn("Could not load CuPy for SyMBac, are you using a GPU? Defaulting to CPU convolution.")
+
+
+    def convolve_rescale(image, kernel, rescale_factor, rescale_int):
+        """
+        Convolves an image with a kernel, and rescales it to the correct size.
+
+        Parameters
+        ----------
+        image : numpy.ndarray
+            The image
+        kernel : 2D numpy array
+            The kernel
+        rescale_factor : int
+            Typically 1/resize_amount. So 1/3 will scale the image down by a factor of 3. We do this because we render the image and kernel at high resolution, so that we can do the convolution at high resolution.
+        rescale_int : bool
+            If True, rescale the intensities between 0 and 1 and return a float32 numpy array of the convolved downscaled image.
+
+        Returns
+        -------
+        outupt : 2D numpy array
+            The output of the convolution rescale operation
+        """
+
+        output = cuconvolve(image, kernel, mode="same")
+        # output = output.get()
+        output = rescale(output, rescale_factor, anti_aliasing=False)
+    
+        if rescale_int:
+            output = rescale_intensity(output.astype(np.float32), out_range=(0, 1))
+        return output
 
 class Renderer:
     """
