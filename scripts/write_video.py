@@ -1,7 +1,9 @@
+from webbrowser import get
 from SyMBac.simulation import Simulation
 from SyMBac.PSF import PSF_generator
 from SyMBac.renderer import Renderer
 from SyMBac.PSF import Camera
+from SyMBac.lineage import Lineage
 import matplotlib.pyplot as plt
 from tqdm.auto import tqdm
 import toml
@@ -11,7 +13,7 @@ import numpy as np
 from PIL import Image
 from joblib import Parallel, delayed
 from skimage.exposure import rescale_intensity
-
+import networkx as nx
 import skimage
 
 
@@ -85,6 +87,28 @@ def make_renderer(image_config, renderer_config, simulation, psf, camera) -> Ren
     renderer.params["match_noise"] = True
     return renderer
 
+def get_lineage_graph(simulation, id_offset):
+    lineage_graph = Lineage(simulation).temporal_lineage_graph
+    # this has nodes with (cell_id, time). We need to add max_id to get the new seg id for each frame
+    # it also has edges between sisters, rather than mother/daughter at division
+    div_nodes = [node for node, degree in lineage_graph.out_degree() if degree > 1]
+    for div_node in div_nodes:
+        cell_id, time = div_node
+        for child in list(lineage_graph.successors(div_node)):
+            child_id, child_time = child
+            if time == child_time:
+                lineage_graph.remove_edge(div_node, child)
+                actual_parent = (cell_id, time -1)
+                lineage_graph.add_edge(actual_parent, child)
+
+    mapping = {}
+    for node in lineage_graph.nodes():
+        old_mask_id, time = node
+        new_mask_id = old_mask_id + id_offset[time]
+        mapping[node] = new_mask_id
+
+    return nx.relabel_nodes(lineage_graph, mapping)
+
 def generate_video_sample(
     renderer,
     params,
@@ -100,14 +124,15 @@ def generate_video_sample(
     match_histogram,
     match_noise,
     match_fourier,
-    mask_dtype=np.uint16,
+    mask_dtype=np.uint64,
 ):
     zarr_group = zarr.open_group(zarr.DirectoryStore(Path(save_dir) / output_zarr, dimension_separator="/"), "a", path = f"scene_{scene_no}")
     
     image_ds = zarr_group.create_dataset(output_group, shape=(num_scenes, *renderer.real_image.shape), dtype=np.uint16) 
     mask_ds = zarr_group.create_dataset("mask", shape=(num_scenes, *renderer.real_image.shape), dtype=mask_dtype) 
-
+    max_id = 0
     zarr_group["mask"] = mask
+    id_offset = {} # time -> offset
     for scene_no in range(start_scene, start_scene + num_scenes):
         image, mask, _ = renderer.generate_test_comparison(
             media_multiplier=media_multiplier,
@@ -131,7 +156,20 @@ def generate_video_sample(
         image = skimage.img_as_uint(rescale_intensity(image))
         image_ds[scene_no - start_scene] = image
         mask = mask.astype(mask_dtype)
+        mask[mask > 0] += max_id
+        max_id = np.max(mask)
+        print(f"max_id in frame {scene_no} is {max_id}")
         mask_ds[scene_no - start_scene] = mask
+    
+    lineage_graph = get_lineage_graph(renderer.simulation, id_offset)
+    with open(Path(output_zarr).with_suffix(".csv"), 'w') as f:
+        f.write("id,parent_id\n")
+        for node in lineage_graph.nodes():
+            parents = list(lineage_graph.predecessors(node))
+            assert len(parents) == 1
+            parent = parents[0]
+            f.write(f"{node},{parent}")
+            
     
 
 def generate_image_sample(
