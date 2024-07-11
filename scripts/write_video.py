@@ -81,8 +81,8 @@ def make_renderer(image_config, renderer_config, simulation, psf, camera) -> Ren
     renderer.image_params = (*means, means_array, *variances, vars_array)
     renderer.params = renderer_config
     renderer.params["match_fourier"] = False
-    renderer.params["match_histogram"] = False
-    renderer.params["match_noise"] = False
+    renderer.params["match_histogram"] = True
+    renderer.params["match_noise"] = True
     return renderer
 
 
