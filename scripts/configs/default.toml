@@ -5,7 +5,7 @@ trench_length=15
 trench_width=1.15
 cell_max_length=2 #6 long cells # 1.65 short cells
 cell_width= 0.90 #1 long cells # 0.95 short cells
-sim_length = 100
+sim_length = 20
 pix_mic_conv = 0.065
 gravity=0
 phys_iters=15
@@ -60,13 +60,11 @@ device_var = 0.01
 
 [training_data]
 sample_amount=0.05
-randomise_hist_match=false
-randomise_noise_match=false
-burn_in=40
+burn_in=0
 n_samples = 10
 save_dir="./symbac_video_test_output/"
-in_series=true
-prefix="videotest"
+in_series=false
+n_jobs = 1
 
 [renderer]
 media_multiplier=75
