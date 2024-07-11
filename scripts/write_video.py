@@ -288,13 +288,10 @@ if __name__ == "__main__":
     print("Config", config)
     simulation = make_simulation(config["simulation"], config["name"])
     phase_psf = make_psf(config["phase_psf"])
-    fluo_psf = make_psf(config["fluo_psf"])
     camera = Camera(**config["camera"])
     burn_in = config["training_data"]["burn_in"]
     n_samples = config["training_data"]["n_samples"]
-    fluor_renderer: Renderer = make_renderer(
-        config["fluo_image_stats"], config["renderer"], simulation, fluo_psf, camera
-    )
+    
 
     phase_renderer: Renderer = make_renderer(
         config["phase_image_stats"], config["renderer"], simulation, phase_psf, camera
@@ -316,15 +313,4 @@ if __name__ == "__main__":
         mask_dtype=np.uint8,
         **config["training_data"],
     )
-
-    generate_data_from_simulation(
-        simulation,
-        fluor_renderer,
-        fluor_renderer.params,
-        output_zarr = output_zarr,  # just the filename
-        output_group = "fluor",
-        scene_nos = scene_nos,
-        seed=False,
-        mask_dtype=np.uint8,
-        **config["training_data"])
 
