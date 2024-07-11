@@ -3,6 +3,7 @@ from SyMBac.PSF import PSF_generator
 from SyMBac.renderer import Renderer
 from SyMBac.PSF import Camera
 import matplotlib.pyplot as plt
+from tqdm.auto import tqdm
 import toml
 from pathlib import Path
 import zarr
@@ -121,9 +122,8 @@ def generate_image_sample(
         random_real_image=None,
     )
 
-    syn_image = skimage.img_as_uint(rescale_intensity(syn_image))
-    zarr_root = zarr.open(Path(save_dir) / output_zarr, "a")
-    zarr_group = zarr_root[f"scene_{scene_no}"]
+    image = skimage.img_as_uint(rescale_intensity(image))
+    zarr_group = zarr.open_group(zarr.DirectoryStore(Path(save_dir) / output_zarr, dimension_separator="/"), "a", path = f"scene_{scene_no}")
     zarr_group[output_group] = image
 
     mask = mask.astype(mask_dtype)
@@ -138,6 +138,7 @@ def generate_data_from_simulation(
     burn_in,
     n_jobs,
     n_samples,
+    scene_nos,
     save_dir,
     output_zarr,  # just the filename
     output_group,
@@ -167,6 +168,9 @@ def generate_data_from_simulation(
         Optional arg, if specified then the numpy random seed will be set for the rendering, allows reproducible rendering results.
 
     """
+    n_samples = len(scene_nos)
+
+    
     if seed:
         np.random.seed(seed)
 
@@ -206,9 +210,7 @@ def generate_data_from_simulation(
             ],
             series_len,
         )
-        scene_nos = (
-            np.arange(burn_in, simulation.sim_length).tolist() * n_series_to_sim
-        )
+       
 
     else:
         media_multipliers = [
@@ -230,9 +232,7 @@ def generate_data_from_simulation(
             np.random.uniform(1 - sample_amount, 1 + sample_amount) * params["sigma"]
             for _ in range(n_samples)
         ]
-        scene_nos = np.random.randint(
-            low=burn_in, high=simulation.sim_length - 2, size=n_samples
-        )
+        
 
     hist_match_bools = [params["match_histogram"]] * n_samples
     noise_match_bools = [params["match_noise"]] * n_samples
@@ -290,21 +290,28 @@ if __name__ == "__main__":
     phase_psf = make_psf(config["phase_psf"])
     fluo_psf = make_psf(config["fluo_psf"])
     camera = Camera(**config["camera"])
+    burn_in = config["training_data"]["burn_in"]
+    n_samples = config["training_data"]["n_samples"]
     fluor_renderer: Renderer = make_renderer(
         config["fluo_image_stats"], config["renderer"], simulation, fluo_psf, camera
     )
-    fluor_renderer.generate_training_data(**config["training_data"])
 
     phase_renderer: Renderer = make_renderer(
-        config["phase_image_stats"], config["renderer"], simulation, fluo_psf, camera
+        config["phase_image_stats"], config["renderer"], simulation, phase_psf, camera
     )
     output_zarr = config["name"] + ".zarr"
+    
+    scene_nos = np.random.randint(
+        low = burn_in, high=simulation.sim_length - 2, size = n_samples
+    )
+    
     generate_data_from_simulation(
         simulation,
         phase_renderer,
         phase_renderer.params,
-        output_zarr,  # just the filename
+        output_zarr = output_zarr,  # just the filename
         output_group = "phase",
+        scene_nos = scene_nos,
         seed=False,
         mask_dtype=np.uint8,
         **config["training_data"],
@@ -314,8 +321,9 @@ if __name__ == "__main__":
         simulation,
         fluor_renderer,
         fluor_renderer.params,
-        output_zarr,  # just the filename
+        output_zarr = output_zarr,  # just the filename
         output_group = "fluor",
+        scene_nos = scene_nos,
         seed=False,
         mask_dtype=np.uint8,
         **config["training_data"])
