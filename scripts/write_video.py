@@ -85,6 +85,54 @@ def make_renderer(image_config, renderer_config, simulation, psf, camera) -> Ren
     renderer.params["match_noise"] = True
     return renderer
 
+def generate_video_sample(
+    renderer,
+    params,
+    save_dir,
+    output_zarr,
+    output_group,
+    media_multiplier,
+    cell_multiplier,
+    device_multiplier,
+    sigma,
+    start_scene,
+    num_scenes,
+    match_histogram,
+    match_noise,
+    match_fourier,
+    mask_dtype=np.uint16,
+):
+    zarr_group = zarr.open_group(zarr.DirectoryStore(Path(save_dir) / output_zarr, dimension_separator="/"), "a", path = f"scene_{scene_no}")
+    
+    image_ds = zarr_group.create_dataset(output_group, shape=(num_scenes, *renderer.real_image.shape), dtype=np.uint16) 
+    mask_ds = zarr_group.create_dataset("mask", shape=(num_scenes, *renderer.real_image.shape), dtype=mask_dtype) 
+
+    zarr_group["mask"] = mask
+    for scene_no in range(start_scene, start_scene + num_scenes):
+        image, mask, _ = renderer.generate_test_comparison(
+            media_multiplier=media_multiplier,
+            cell_multiplier=cell_multiplier,
+            device_multiplier=device_multiplier,
+            sigma=sigma,
+            scene_no=scene_no,
+            match_fourier=match_fourier,
+            match_histogram=match_histogram,
+            match_noise=match_noise,
+            debug_plot=False,
+            noise_var=params["noise_var"],
+            defocus=params["defocus"],
+            halo_top_intensity=params["halo_top_intensity"],
+            halo_bottom_intensity=params["halo_bottom_intensity"],
+            halo_start=params["halo_start"],
+            halo_end=params["halo_end"],
+            random_real_image=None,
+        )
+
+        image = skimage.img_as_uint(rescale_intensity(image))
+        image_ds[scene_no - start_scene] = image
+        mask = mask.astype(mask_dtype)
+        mask_ds[scene_no - start_scene] = mask
+    
 
 def generate_image_sample(
     renderer,
@@ -103,7 +151,7 @@ def generate_image_sample(
     mask_dtype=np.uint16,
 ):
 
-    image, mask, _ = phase_renderer.generate_test_comparison(
+    image, mask, _ = renderer.generate_test_comparison(
         media_multiplier=media_multiplier,
         cell_multiplier=cell_multiplier,
         device_multiplier=device_multiplier,
