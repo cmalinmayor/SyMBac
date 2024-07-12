@@ -87,7 +87,7 @@ def make_renderer(image_config, renderer_config, simulation, psf, camera) -> Ren
     renderer.params["match_noise"] = True
     return renderer
 
-def get_lineage_graph(simulation, id_offset):
+def get_lineage_graph(simulation):
     lineage_graph = Lineage(simulation).temporal_lineage_graph
     # this has nodes with (cell_id, time). We need to add max_id to get the new seg id for each frame
     # it also has edges between sisters, rather than mother/daughter at division
@@ -100,7 +100,9 @@ def get_lineage_graph(simulation, id_offset):
                 lineage_graph.remove_edge(div_node, child)
                 actual_parent = (cell_id, time -1)
                 lineage_graph.add_edge(actual_parent, child)
+    return lineage_graph
 
+def remap_graph_ids(lineage_graph, id_offset):
     mapping = {}
     for node in lineage_graph.nodes():
         old_mask_id, time = node
@@ -126,6 +128,7 @@ def generate_video_sample(
     match_fourier,
     mask_dtype=np.uint64,
 ):
+    lineage_graph = get_lineage_graph(renderer.simulation)
     zarr_group = zarr.open_group(zarr.DirectoryStore(Path(save_dir) / output_zarr, dimension_separator="/"), "w")
     
     image_ds = zarr_group.create_dataset(output_group, shape=(num_scenes, *renderer.real_image.shape), dtype=np.uint16) 
@@ -161,7 +164,7 @@ def generate_video_sample(
         print(f"max_id in frame {scene_no} is {max_id}")
         mask_ds[scene_no - burn_in] = mask
     
-    lineage_graph = get_lineage_graph(renderer.simulation, id_offset)
+    lineage_graph = remap_graph_ids(lineage_graph, id_offset)
     with open(Path(output_zarr).with_suffix(".csv"), 'w') as f:
         f.write("id,parent_id\n")
         for node in lineage_graph.nodes():
