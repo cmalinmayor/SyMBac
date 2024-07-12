@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from tqdm.auto import tqdm
 import toml
 from pathlib import Path
+import random
 import zarr
 import numpy as np
 from PIL import Image
@@ -42,6 +43,10 @@ def plot_PSF(psf, figname):
 
 
 def make_simulation(config, name):
+    cell_max_length_random = random.randint(config["cell_max_length"][0], config["cell_max_length"][1])
+    cell_width_random = random.randint(config["cell_width"][0], config["cell_width"][1])
+    config["cell_max_length_random"] = cell_max_length_random
+    config["cell_width"] = cell_width_random
     simulation = Simulation(**config)
     simulation.run_simulation(show_window=False)
     simulation.draw_simulation_OPL(do_transformation=False, label_masks=True)
@@ -128,7 +133,7 @@ def generate_video_sample(
     match_fourier,
     mask_dtype=np.uint64,
 ):
-    lineage_graph = get_lineage_graph(renderer.simulation)
+    #lineage_graph = get_lineage_graph(renderer.simulation)
     zarr_group = zarr.open_group(zarr.DirectoryStore(Path(save_dir) / output_zarr, dimension_separator="/"), "w")
     
     image_ds = zarr_group.create_dataset(output_group, shape=(num_scenes, *renderer.real_image.shape), dtype=np.uint16) 
@@ -158,12 +163,14 @@ def generate_video_sample(
         image = skimage.img_as_uint(rescale_intensity(image))
         image_ds[scene_no - burn_in] = image
         mask = mask.astype(mask_dtype)
+        """
         id_offset[scene_no] = max_id
         mask[mask > 0] += max_id
         max_id = np.max(mask)
         print(f"max_id in frame {scene_no} is {max_id}")
+        """
         mask_ds[scene_no - burn_in] = mask
-    
+"""
     lineage_graph = remap_graph_ids(lineage_graph, id_offset)
     with open(Path(output_zarr).with_suffix(".csv"), 'w') as f:
         f.write("id,parent_id\n")
@@ -172,7 +179,7 @@ def generate_video_sample(
             assert len(parents) == 1
             parent = parents[0]
             f.write(f"{node},{parent}")
-            
+"""
     
 
 def generate_image_sample(
@@ -334,10 +341,10 @@ def generate_data_from_simulation(
             mask_dtype=mask_dtype,
     )
 
-
 if __name__ == "__main__":
     config = toml.load("configs/default.toml")
     print("Config", config)
+    
     simulation = make_simulation(config["simulation"], config["name"])
     phase_psf = make_psf(config["phase_psf"])
     camera = Camera(**config["camera"])
