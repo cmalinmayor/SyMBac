@@ -149,6 +149,7 @@ def generate_video_sample(
             halo_start=params["halo_start"],
             halo_end=params["halo_end"],
             random_real_image=None,
+            scene_no=scene_no,
         )
 
         image = skimage.img_as_uint(rescale_intensity(image))
@@ -334,10 +335,6 @@ def generate_data_from_simulation(
 if __name__ == "__main__":
     config = toml.load("configs/default.toml")
     print("Config", config)
-
-    # add some randomness to the config
-        
-    
     simulation = make_simulation(config["simulation"], config["name"])
     phase_psf = make_psf(config["phase_psf"])
     camera = Camera(**config["camera"])
