@@ -51,6 +51,7 @@ device_mean = 0.1
 device_var = 0.05
 
 [phase_image_stats]
+filepath = "images/220510_bsub_degron_rap_BF_raw.tif"
 media_mean = 0.1
 media_var = 0.05
 cell_mean = 0.3
@@ -59,12 +60,9 @@ device_mean = 0.05
 device_var = 0.01
 
 [training_data]
-sample_amount=0.05
 burn_in=0
-n_samples = 100
+num_scenes = 100
 save_dir="/nrs/funke/data/darts/synthetic_data/"
-in_series=false
-n_jobs = 1
 
 [renderer]
 media_multiplier=75
