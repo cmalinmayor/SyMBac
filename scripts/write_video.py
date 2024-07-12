@@ -154,6 +154,7 @@ def generate_video_sample(
         image = skimage.img_as_uint(rescale_intensity(image))
         image_ds[scene_no - burn_in] = image
         mask = mask.astype(mask_dtype)
+        id_offset[scene_no] = max_id
         mask[mask > 0] += max_id
         max_id = np.max(mask)
         print(f"max_id in frame {scene_no} is {max_id}")
@@ -333,6 +334,10 @@ def generate_data_from_simulation(
 if __name__ == "__main__":
     config = toml.load("configs/default.toml")
     print("Config", config)
+
+    # add some randomness to the config
+        
+    
     simulation = make_simulation(config["simulation"], config["name"])
     phase_psf = make_psf(config["phase_psf"])
     camera = Camera(**config["camera"])
