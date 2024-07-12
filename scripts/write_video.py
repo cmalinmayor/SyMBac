@@ -104,10 +104,15 @@ def get_lineage_graph(simulation):
 
 def remap_graph_ids(lineage_graph, id_offset):
     mapping = {}
+    nodes_to_delete = []
     for node in lineage_graph.nodes():
         old_mask_id, time = node
-        new_mask_id = old_mask_id + id_offset[time]
-        mapping[node] = new_mask_id
+        if time in id_offset:
+            new_mask_id = old_mask_id + id_offset[time]
+            mapping[node] = new_mask_id
+        else:
+            nodes_to_delete.append(node)
+    lineage_graph.remove_nodes_from(nodes_to_delete)
 
     return nx.relabel_nodes(lineage_graph, mapping)
 
