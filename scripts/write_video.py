@@ -61,7 +61,7 @@ def make_psf(config):
 
 def make_renderer(image_config, renderer_config, simulation, psf, camera) -> Renderer:
     # real_image = np.zeros((256, 46))
-    filepath = "/groups/funke/home/sistaa/code/SyMBac/scripts/images/220510_bsub_degron_rap_BF_raw.tif"
+    filepath = image_config["filepath"]
     real_image = Image.open(filepath, "r")
     real_image = np.array(real_image)
     # print(real_image.size)
@@ -118,19 +118,11 @@ def remap_graph_ids(lineage_graph, id_offset):
 
 def generate_video_sample(
     renderer,
-    params,
     save_dir,
     output_zarr,
     output_group,
-    media_multiplier,
-    cell_multiplier,
-    device_multiplier,
-    sigma,
     burn_in,
     num_scenes,
-    match_histogram,
-    match_noise,
-    match_fourier,
     mask_dtype=np.uint64,
 ):
     lineage_graph = get_lineage_graph(renderer.simulation)
@@ -142,20 +134,20 @@ def generate_video_sample(
     id_offset = {} # time -> offset
     for scene_no in range(burn_in, burn_in + num_scenes):
         image, mask, _ = renderer.generate_test_comparison(
-            media_multiplier=media_multiplier,
-            cell_multiplier=cell_multiplier,
-            device_multiplier=device_multiplier,
-            sigma=sigma,
-            match_fourier=match_fourier,
-            match_histogram=match_histogram,
-            match_noise=match_noise,
+            media_multiplier=renderer.params.media_multiplier,
+            cell_multiplier=renderer.params.cell_multiplier,
+            device_multiplier=renderer.params.device_multiplier,
+            sigma=renderer.params.sigma,
+            match_fourier=renderer.params.match_fourier,
+            match_histogram=renderer.params.match_histogram,
+            match_noise=renderer.params.match_noise,
             debug_plot=False,
-            noise_var=params["noise_var"],
-            defocus=params["defocus"],
-            halo_top_intensity=params["halo_top_intensity"],
-            halo_bottom_intensity=params["halo_bottom_intensity"],
-            halo_start=params["halo_start"],
-            halo_end=params["halo_end"],
+            noise_var=renderer.params["noise_var"],
+            defocus=renderer.params["defocus"],
+            halo_top_intensity=renderer.params["halo_top_intensity"],
+            halo_bottom_intensity=renderer.params["halo_bottom_intensity"],
+            halo_start=renderer.params["halo_start"],
+            halo_end=renderer.params["halo_end"],
             random_real_image=None,
             scene_no=scene_no,
         )
@@ -178,167 +170,6 @@ def generate_video_sample(
             parent = parents[0]
             f.write(f"{node},{parent}")
             
-    
-
-def generate_image_sample(
-    renderer,
-    params,
-    save_dir,
-    output_zarr,
-    output_group,
-    media_multiplier,
-    cell_multiplier,
-    device_multiplier,
-    sigma,
-    scene_no,
-    match_histogram,
-    match_noise,
-    match_fourier,
-    mask_dtype=np.uint16,
-):
-
-    image, mask, _ = renderer.generate_test_comparison(
-        media_multiplier=media_multiplier,
-        cell_multiplier=cell_multiplier,
-        device_multiplier=device_multiplier,
-        sigma=sigma,
-        scene_no=scene_no,
-        match_fourier=match_fourier,
-        match_histogram=match_histogram,
-        match_noise=match_noise,
-        debug_plot=False,
-        noise_var=params["noise_var"],
-        defocus=params["defocus"],
-        halo_top_intensity=params["halo_top_intensity"],
-        halo_bottom_intensity=params["halo_bottom_intensity"],
-        halo_start=params["halo_start"],
-        halo_end=params["halo_end"],
-        random_real_image=None,
-    )
-
-    image = skimage.img_as_uint(rescale_intensity(image))
-    zarr_group = zarr.open_group(zarr.DirectoryStore(Path(save_dir) / output_zarr, dimension_separator="/"), "a", path = f"scene_{scene_no}")
-    zarr_group[output_group] = image
-
-    mask = mask.astype(mask_dtype)
-    zarr_group["mask"] = mask
-
-
-def generate_data_from_simulation(
-    simulation,
-    renderer,
-    params,
-    sample_amount,
-    burn_in,
-    n_jobs,
-    n_samples,
-    save_dir,
-    output_zarr,  # just the filename
-    output_group,
-    in_series=False,
-    mask_dtype=np.uint8,
-):
-    """
-    Generates the training data from a Jupyter interactive output of generate_test_comparison
-
-    Parameters
-    ----------
-    sample_amount : float
-        The percentage sampling variance (drawn from a uniform distribution) to vary intensities by. For example, a
-        sample_amount of 0.05 will randomly sample +/- 5% above and below the chosen intensity for cells,
-        media and device. Can be used to create a little bit of variance in the final training data.
-    burn_in : int
-        Number of frames to wait before generating training data. Can be used to ignore the start of the simulation
-        where the trench only has 1 cell in it.
-    n_samples : int
-        The number of training images to generate
-    output_zarr : str
-        The zarr in which to save the data
-    in_series : bool
-        Whether the images should be randomly sampled, or rendered in the order that the simulation was run in.
-    seed : float
-        Optional arg, if specified then the numpy random seed will be set for the rendering, allows reproducible rendering results.
-
-    """
-
-    if in_series:
-        series_len = (simulation.sim_length) - burn_in
-        n_series_to_sim = int(np.ceil(n_samples / series_len))
-
-        media_multipliers = np.repeat(
-            [
-                np.random.uniform(1 - sample_amount, 1 + sample_amount)
-                * params["media_multiplier"]
-                for _ in range(n_series_to_sim)
-            ],
-            series_len,
-        )
-        cell_multipliers = np.repeat(
-            [
-                np.random.uniform(1 - sample_amount, 1 + sample_amount)
-                * params["cell_multiplier"]
-                for _ in range(n_series_to_sim)
-            ],
-            series_len,
-        )
-        device_multipliers = np.repeat(
-            [
-                np.random.uniform(1 - sample_amount, 1 + sample_amount)
-                * params["device_multiplier"]
-                for _ in range(n_series_to_sim)
-            ],
-            series_len,
-        )
-        sigmas = np.repeat(
-            [
-                np.random.uniform(1 - sample_amount, 1 + sample_amount)
-                * params["sigma"]
-                for _ in range(n_series_to_sim)
-            ],
-            series_len,
-        )
-       
-
-    else:
-        media_multipliers = [
-            np.random.uniform(1 - sample_amount, 1 + sample_amount)
-            * params["media_multiplier"]
-            for _ in range(n_samples)
-        ]
-        cell_multipliers = [
-            np.random.uniform(1 - sample_amount, 1 + sample_amount)
-            * params["cell_multiplier"]
-            for _ in range(n_samples)
-        ]
-        device_multipliers = [
-            np.random.uniform(1 - sample_amount, 1 + sample_amount)
-            * params["device_multiplier"]
-            for _ in range(n_samples)
-        ]
-        sigmas = [
-            np.random.uniform(1 - sample_amount, 1 + sample_amount) * params["sigma"]
-            for _ in range(n_samples)
-        ]
- 
-
-    generate_video_sample(
-            renderer,
-            params,
-            save_dir,
-            output_zarr,
-            output_group,
-            params["media_multiplier"],
-            params["cell_multiplier"],
-            params["device_multiplier"],
-            params["sigma"],
-            burn_in,
-            n_samples,
-            params["match_histogram"],
-            params["match_noise"],
-            params["match_fourier"],
-            mask_dtype=mask_dtype,
-    )
-
 
 if __name__ == "__main__":
     config = toml.load("configs/default.toml")
@@ -346,22 +177,16 @@ if __name__ == "__main__":
     simulation = make_simulation(config["simulation"], config["name"])
     phase_psf = make_psf(config["phase_psf"])
     camera = Camera(**config["camera"])
-    burn_in = config["training_data"]["burn_in"]
-    n_samples = config["training_data"]["n_samples"]
-    
-
     phase_renderer: Renderer = make_renderer(
         config["phase_image_stats"], config["renderer"], simulation, phase_psf, camera
     )
     output_zarr = config["name"] + ".zarr"
-    
-    generate_data_from_simulation(
-        simulation,
+
+    generate_video_sample(
         phase_renderer,
-        phase_renderer.params,
-        output_zarr = output_zarr,  # just the filename
-        output_group = "phase",
-        mask_dtype=np.uint8,
+        mask_dtype=np.uint64,
+        output_zarr=output_zarr,
+        output_group="phase",
         **config["training_data"],
     )
 
