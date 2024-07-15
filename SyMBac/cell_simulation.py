@@ -256,11 +256,12 @@ def step_and_update(dt, cells, space, phys_iters, ylim, cell_timeseries, x, sim_
 
     if x[0] > 1:
         cell_timeseries.append(deepcopy(cells))
-    if x[0] == sim_length-1:
-        with open(save_dir+"/cell_timeseries.p", "wb") as f:
-            pickle.dump(cell_timeseries, f)
-        with open(save_dir+"/space_timeseries.p", "wb") as f:
-            pickle.dump(space, f)
+    if x[0] == sim_length-1:    
+        if save_dir is not None:
+            with open(save_dir+"/cell_timeseries.p", "wb") as f:
+                pickle.dump(cell_timeseries, f)
+            with open(save_dir+"/space_timeseries.p", "wb") as f:
+                pickle.dump(space, f)
         pyglet.app.exit()
         return cells
     x[0] += 1
