@@ -25,17 +25,17 @@ class Lineage:
             for cell in cells:
                 self.temporal_lineage_graph.add_node((cell.mask_label, cell.t), cell = cell)
 
-        for node in self.temporal_lineage_graph.nodes:
-            exp_node = (node[0], node[1]-1)
-            if exp_node in self.temporal_lineage_graph.nodes:
-                self.temporal_lineage_graph.add_edge(exp_node, node)
-
-        for node in self.temporal_lineage_graph.nodes:
-            cell = self.temporal_lineage_graph.nodes[node]["cell"]
-            if cell.mother:
-                exp_node = (cell.mother.mask_label, node[1])
-                assert exp_node in self.temporal_lineage_graph.nodes
-                self.temporal_lineage_graph.add_edge(exp_node, node)
+#        for node in self.temporal_lineage_graph.nodes:
+#            exp_node = (node[0], node[1]-1)
+#            if exp_node in self.temporal_lineage_graph.nodes:
+#                self.temporal_lineage_graph.add_edge(exp_node, node)
+#
+#        for node in self.temporal_lineage_graph.nodes:
+#            cell = self.temporal_lineage_graph.nodes[node]["cell"]
+#            if cell.mother:
+#                exp_node = (cell.mother.mask_label, node[1])
+#                assert exp_node in self.temporal_lineage_graph.nodes
+#                self.temporal_lineage_graph.add_edge(exp_node, node)
 
     def plot_family_tree(self):
         pos = nx.nx_agraph.graphviz_layout(self.family_tree_graph, prog="twopi")

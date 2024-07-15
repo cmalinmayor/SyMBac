@@ -43,9 +43,9 @@ def plot_PSF(psf, figname):
 
 
 def make_simulation(config, name):
-    cell_max_length_random = random.randint(config["cell_max_length"][0], config["cell_max_length"][1])
-    cell_width_random = random.randint(config["cell_width"][0], config["cell_width"][1])
-    config["cell_max_length_random"] = cell_max_length_random
+    cell_max_length_random = random.uniform(config["cell_max_length"][0], config["cell_max_length"][1])
+    cell_width_random = random.uniform(config["cell_width"][0], config["cell_width"][1])
+    config["cell_max_length"] = cell_max_length_random
     config["cell_width"] = cell_width_random
     simulation = Simulation(**config)
     simulation.run_simulation(show_window=False)
@@ -153,7 +153,7 @@ def generate_video_sample(
     num_scenes,
     mask_dtype=np.uint64,
 ):
-    #lineage_graph = get_lineage_graph(renderer.simulation)
+    lineage_graph = get_lineage_graph(renderer.simulation)
     zarr_group = zarr.open_group(zarr.DirectoryStore(Path(save_dir) / output_zarr, dimension_separator="/"), "w")
     
     image_ds = zarr_group.create_dataset(output_group, shape=(num_scenes, *renderer.real_image.shape), dtype=np.uint16) 
