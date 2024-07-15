@@ -91,11 +91,10 @@ def make_renderer(image_config, renderer_config, simulation, psf, camera) -> Ren
     renderer.params["match_noise"] = True
     return renderer
 
-def get_lineage_graph(simulation):
+def add_graph_edges(node_graph, simulation):
     lineage = Lineage(simulation)
     parent_links = lineage.family_tree_edgelist # parent id, child id
-    lineage_graph = nx.create_empty_copy(lineage.temporal_lineage_graph)
-
+    lineage_graph = node_graph
     cell_ids_by_time = {}
     for node in lineage_graph.nodes():
         cell_id, time = node
@@ -105,7 +104,7 @@ def get_lineage_graph(simulation):
 
     max_time = max(cell_ids_by_time.keys())
     min_time = min(cell_ids_by_time.keys())
-    for t in range(min_time + 1, max_time):
+    for t in range(min_time + 1, max_time + 1):
         for cell_id in cell_ids_by_time[t]:
             node = (cell_id, t)
             assert node in lineage_graph.nodes
@@ -123,21 +122,11 @@ def get_lineage_graph(simulation):
             lineage_graph.add_edge(parent, node)
     return lineage_graph
 
-def remap_graph_ids(lineage_graph, id_offset):
+def remap_graph_ids(lineage_graph, mapping):
     print("Checking lineage graph before removing nodes")
     check_for_double_parents(lineage_graph)
-    mapping = {}
-    nodes_to_delete = []
     for node in lineage_graph.nodes():
-        old_mask_id, time = node
-        if time in id_offset:
-            new_mask_id = old_mask_id + id_offset[time]
-            mapping[node] = new_mask_id
-        else:
-            nodes_to_delete.append(node)
-    lineage_graph.remove_nodes_from(nodes_to_delete)
-    print("Checking lineage graph after removing nodes")
-    check_for_double_parents(lineage_graph)
+        assert node in mapping.keys(), f"Node {node} not in mapping keys {mapping.keys()}"
     relabeled = nx.relabel_nodes(lineage_graph, mapping)
     print("Checking lineage graph after remapping")
     check_for_double_parents(relabeled)
@@ -152,13 +141,14 @@ def generate_video_sample(
     num_scenes,
     mask_dtype=np.uint64,
 ):
-    lineage_graph = get_lineage_graph(renderer.simulation)
+    lineage_graph = nx.DiGraph()
+    cell_id_mapping = {}
+    max_id = 0
+
     zarr_group = zarr.open_group(zarr.DirectoryStore(Path(save_dir) / output_zarr, dimension_separator="/"), "w")
-    
     image_ds = zarr_group.create_dataset(output_group, shape=(num_scenes, *renderer.real_image.shape), dtype=np.uint16) 
     mask_ds = zarr_group.create_dataset("mask", shape=(num_scenes, *renderer.real_image.shape), dtype=mask_dtype) 
-    max_id = 0
-    id_offset = {} # time -> offset
+    
     for scene_no in tqdm(range(burn_in, burn_in + num_scenes), desc="Rendering video frames"):
         image, mask, _ = renderer.generate_test_comparison(
             media_multiplier=renderer.params["media_multiplier"],
@@ -182,11 +172,17 @@ def generate_video_sample(
         image = skimage.img_as_uint(rescale_intensity(image))
         image_ds[scene_no - burn_in] = image
         mask = mask.astype(mask_dtype)
-        id_offset[scene_no] = max_id
+        old_cell_ids = np.unique(mask)
+        for cell_id in old_cell_ids:
+            if cell_id != 0:
+                new_cell_id = cell_id + max_id
+                cell_id_mapping[(cell_id, scene_no)] = new_cell_id
+                lineage_graph.add_node((cell_id, scene_no))
         mask[mask > 0] += max_id
         max_id = np.max(mask)
         mask_ds[scene_no - burn_in] = mask
-    lineage_graph = remap_graph_ids(lineage_graph, id_offset)
+    lineage_graph = add_graph_edges(lineage_graph, simulation)
+    lineage_graph = remap_graph_ids(lineage_graph, cell_id_mapping)
     with open((Path(save_dir) / output_zarr).with_suffix(".csv"), 'w') as f:
         f.write("id,parent_id\n")
         for node in lineage_graph.nodes():
