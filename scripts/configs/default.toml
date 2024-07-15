@@ -12,7 +12,6 @@ phys_iters=15
 max_length_var = 0
 width_var = 0
 lysis_p = 0
-save_dir="./unnecessary/"
 resize_amount = 3
 
 [phase_psf]
