@@ -25,29 +25,10 @@ apo_sigma = 20
 mode="phase contrast"
 condenser = "Ph3"
 
-[fluo_psf]
-radius = 50 
-wavelength = 0.75 
-NA = 1.2 
-n = 1.3 
-resize_amount = 3 
-pix_mic_conv = 0.065 
-apo_sigma = 20 
-mode="simple fluo"
-condenser = "Ph3"
-
 [camera]
 baseline=100 
 sensitivity=2.9
 dark_noise=8
-
-[fluo_image_stats]
-media_mean = 0.1
-media_var = 0.05
-cell_mean = 0.8
-cell_var = 0.1
-device_mean = 0.1
-device_var = 0.05
 
 [phase_image_stats]
 filepath = "images/220510_bsub_degron_rap_BF_raw.tif"

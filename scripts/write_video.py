@@ -1,4 +1,3 @@
-from webbrowser import get
 from SyMBac.simulation import Simulation
 from SyMBac.PSF import PSF_generator
 from SyMBac.renderer import Renderer
@@ -12,7 +11,6 @@ import random
 import zarr
 import numpy as np
 from PIL import Image
-from joblib import Parallel, delayed
 from skimage.exposure import rescale_intensity
 import networkx as nx
 import skimage
@@ -21,54 +19,23 @@ import argparse
 random.seed(100)
 np.random.seed(100065)
 
-def save_simulation_timeseries_zarr(scene, mask, outfile):
-    root = zarr.open(outfile)
-    root["mask"] = mask
-    root["scene"] = scene
-
-
-def plot_PSF(psf, figname):
-    if "3d fluo" in psf.mode.lower():
-        fig, axes = plt.subplots(1, 3)
-        for dim, ax in enumerate(axes.flatten()):
-            ax.axis("off")
-            ax.imshow((psf.kernel.mean(axis=dim)), cmap="Greys_r")
-            # scalebar = ScaleBar(self.scale, "um", length_fraction=0.3)
-            # ax.add_artist(scalebar)
-        plt.savefig(figname)
-    else:
-        fig, ax = plt.subplots()
-        ax.axis("off")
-        ax.imshow(psf.kernel, cmap="Greys_r")
-        # scalebar = ScaleBar(self.scale, "um", length_fraction=0.25)
-        # ax.add_artist(scalebar)
-        plt.savefig(figname)
-
 
 def make_simulation(config, name):
     simulation = Simulation(**config, save_dir=None)
     simulation.run_simulation(show_window=False)
     simulation.draw_simulation_OPL(do_transformation=False, label_masks=True)
-    output_zarr_path = Path(name + ".zarr")
-    save_simulation_timeseries_zarr(
-        simulation.OPL_scenes, simulation.masks, output_zarr_path
-    )
     return simulation
 
 
 def make_psf(config):
     kernel = PSF_generator(**config)
     kernel.calculate_PSF()
-    plot_PSF(kernel, f"kernel_{config['mode']}.png")
     return kernel
 
 
 def make_renderer(image_config, renderer_config, simulation, psf, camera) -> Renderer:
-    # real_image = np.zeros((256, 46))
     filepath = image_config["filepath"]
-    real_image = Image.open(filepath, "r")
-    real_image = np.array(real_image)
-    # print(real_image.size)
+    real_image = np.array(Image.open(filepath, "r"))
     renderer = Renderer(
         simulation=simulation, PSF=psf, real_image=real_image, camera=camera
     )
@@ -91,9 +58,10 @@ def make_renderer(image_config, renderer_config, simulation, psf, camera) -> Ren
     renderer.params["match_noise"] = True
     return renderer
 
+
 def add_graph_edges(node_graph, simulation):
     lineage = Lineage(simulation)
-    parent_links = lineage.family_tree_edgelist # parent id, child id
+    parent_links = lineage.family_tree_edgelist  # parent id, child id
     lineage_graph = node_graph
     cell_ids_by_time = {}
     for node in lineage_graph.nodes():
@@ -109,12 +77,12 @@ def add_graph_edges(node_graph, simulation):
             node = (cell_id, t)
             assert node in lineage_graph.nodes
             if cell_id in cell_ids_by_time[t - 1]:
-                parent = (cell_id, t-1)
+                parent = (cell_id, t - 1)
             else:
                 found_parent = False
                 for parent_id, child_id in parent_links:
                     if child_id == cell_id:
-                        parent = (int(parent_id), t-1)
+                        parent = (int(parent_id), t - 1)
                         found_parent = True
                         break
                 assert found_parent
@@ -122,15 +90,19 @@ def add_graph_edges(node_graph, simulation):
             lineage_graph.add_edge(parent, node)
     return lineage_graph
 
+
 def remap_graph_ids(lineage_graph, mapping):
     print("Checking lineage graph before removing nodes")
     check_for_double_parents(lineage_graph)
     for node in lineage_graph.nodes():
-        assert node in mapping.keys(), f"Node {node} not in mapping keys {mapping.keys()}"
+        assert (
+            node in mapping.keys()
+        ), f"Node {node} not in mapping keys {mapping.keys()}"
     relabeled = nx.relabel_nodes(lineage_graph, mapping)
     print("Checking lineage graph after remapping")
     check_for_double_parents(relabeled)
     return relabeled
+
 
 def generate_video_sample(
     renderer,
@@ -145,11 +117,19 @@ def generate_video_sample(
     cell_id_mapping = {}
     max_id = 0
 
-    zarr_group = zarr.open_group(zarr.DirectoryStore(Path(save_dir) / output_zarr, dimension_separator="/"), "w")
-    image_ds = zarr_group.create_dataset(output_group, shape=(num_scenes, *renderer.real_image.shape), dtype=np.uint16) 
-    mask_ds = zarr_group.create_dataset("mask", shape=(num_scenes, *renderer.real_image.shape), dtype=mask_dtype) 
-    
-    for scene_no in tqdm(range(burn_in, burn_in + num_scenes), desc="Rendering video frames"):
+    zarr_group = zarr.open_group(
+        zarr.DirectoryStore(Path(save_dir) / output_zarr, dimension_separator="/"), "w"
+    )
+    image_ds = zarr_group.create_dataset(
+        output_group, shape=(num_scenes, *renderer.real_image.shape), dtype=np.uint16
+    )
+    mask_ds = zarr_group.create_dataset(
+        "mask", shape=(num_scenes, *renderer.real_image.shape), dtype=mask_dtype
+    )
+
+    for scene_no in tqdm(
+        range(burn_in, burn_in + num_scenes), desc="Rendering video frames"
+    ):
         image, mask, _ = renderer.generate_test_comparison(
             media_multiplier=renderer.params["media_multiplier"],
             cell_multiplier=renderer.params["cell_multiplier"],
@@ -183,7 +163,7 @@ def generate_video_sample(
         mask_ds[scene_no - burn_in] = mask
     lineage_graph = add_graph_edges(lineage_graph, simulation)
     lineage_graph = remap_graph_ids(lineage_graph, cell_id_mapping)
-    with open((Path(save_dir) / output_zarr).with_suffix(".csv"), 'w') as f:
+    with open((Path(save_dir) / output_zarr).with_suffix(".csv"), "w") as f:
         f.write("id,parent_id\n")
         for node in lineage_graph.nodes():
             parents = list(lineage_graph.predecessors(node))
@@ -193,21 +173,24 @@ def generate_video_sample(
             else:
                 parent = parents[0]
             f.write(f"{node},{parent}\n")
-    
+
+
 def check_for_double_parents(graph):
     for node in graph.nodes():
         parents = list(graph.predecessors(node))
         assert len(parents) <= 1, f"node {node} has parents {parents}"
 
+
 def randomize_config_value(config, key):
     value_range = config[key]
     config[key] = random.uniform(*value_range)
 
+
 def randomize_config(config):
     randomize_config_value(config["simulation"], "cell_max_length")
     randomize_config_value(config["simulation"], "cell_width")
-    print(config["simulation"])
     return config
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -225,7 +208,7 @@ if __name__ == "__main__":
 
     config = randomize_config(config)
     print("Config", config)
-    
+
     simulation = make_simulation(config["simulation"], name)
     phase_psf = make_psf(config["phase_psf"])
     camera = Camera(**config["camera"])
@@ -241,4 +224,3 @@ if __name__ == "__main__":
         output_group="phase",
         **config["training_data"],
     )
-
