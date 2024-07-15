@@ -16,7 +16,10 @@ from joblib import Parallel, delayed
 from skimage.exposure import rescale_intensity
 import networkx as nx
 import skimage
+import argparse
 
+random.seed(100)
+np.random.seed(100065)
 
 def save_simulation_timeseries_zarr(scene, mask, outfile):
     root = zarr.open(outfile)
@@ -43,11 +46,7 @@ def plot_PSF(psf, figname):
 
 
 def make_simulation(config, name):
-    cell_max_length_random = random.uniform(config["cell_max_length"][0], config["cell_max_length"][1])
-    cell_width_random = random.uniform(config["cell_width"][0], config["cell_width"][1])
-    config["cell_max_length"] = cell_max_length_random
-    config["cell_width"] = cell_width_random
-    simulation = Simulation(**config)
+    simulation = Simulation(**config, save_dir=None)
     simulation.run_simulation(show_window=False)
     simulation.draw_simulation_OPL(do_transformation=False, label_masks=True)
     output_zarr_path = Path(name + ".zarr")
@@ -204,17 +203,40 @@ def check_for_double_parents(graph):
         parents = list(graph.predecessors(node))
         assert len(parents) <= 1, f"node {node} has parents {parents}"
 
+def randomize_config_value(config, key):
+    value_range = config[key]
+    config[key] = random.uniform(*value_range)
+
+def randomize_config(config):
+    randomize_config_value(config["simulation"], "cell_max_length")
+    randomize_config_value(config["simulation"], "cell_width")
+    print(config["simulation"])
+    return config
+
 if __name__ == "__main__":
-    config = toml.load("configs/default.toml")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("config")
+    parser.add_argument("-n", "--name", default=None)
+    args = parser.parse_args()
+    config = toml.load(args.config)
+    if args.name is None:
+        if "name" in config:
+            name = config["name"]
+        else:
+            name = hash(config)
+    else:
+        name = args.name
+
+    config = randomize_config(config)
     print("Config", config)
     
-    simulation = make_simulation(config["simulation"], config["name"])
+    simulation = make_simulation(config["simulation"], name)
     phase_psf = make_psf(config["phase_psf"])
     camera = Camera(**config["camera"])
     phase_renderer: Renderer = make_renderer(
         config["phase_image_stats"], config["renderer"], simulation, phase_psf, camera
     )
-    output_zarr = config["name"] + ".zarr"
+    output_zarr = name + ".zarr"
 
     generate_video_sample(
         phase_renderer,
