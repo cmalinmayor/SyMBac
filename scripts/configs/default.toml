@@ -3,8 +3,8 @@ name = "video_one"
 [simulation]
 trench_length=15
 trench_width=1.15
-cell_max_length=2 #6 long cells # 1.65 short cells
-cell_width= 0.90 #1 long cells # 0.95 short cells
+cell_max_length=[2,5] #6 long cells # 1.65 short cells
+cell_width= [0.89, 0.98] #1 long cells # 0.95 short cells
 sim_length = 100
 pix_mic_conv = 0.065
 gravity=0
