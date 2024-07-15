@@ -88,21 +88,40 @@ def make_renderer(image_config, renderer_config, simulation, psf, camera) -> Ren
     return renderer
 
 def get_lineage_graph(simulation):
-    lineage_graph = Lineage(simulation).temporal_lineage_graph
-    # this has nodes with (cell_id, time). We need to add max_id to get the new seg id for each frame
-    # it also has edges between sisters, rather than mother/daughter at division
-    div_nodes = [node for node, degree in lineage_graph.out_degree() if degree > 1]
-    for div_node in div_nodes:
-        cell_id, time = div_node
-        for child in list(lineage_graph.successors(div_node)):
-            child_id, child_time = child
-            if time == child_time:
-                lineage_graph.remove_edge(div_node, child)
-                actual_parent = (cell_id, time -1)
-                lineage_graph.add_edge(actual_parent, child)
+    lineage = Lineage(simulation)
+    parent_links = lineage.family_tree_edgelist # parent id, child id
+    lineage_graph = nx.create_empty_copy(lineage.temporal_lineage_graph)
+
+    cell_ids_by_time = {}
+    for node in lineage_graph.nodes():
+        cell_id, time = node
+        if time not in cell_ids_by_time:
+            cell_ids_by_time[time] = []
+        cell_ids_by_time[time].append(cell_id)
+
+    max_time = max(cell_ids_by_time.keys())
+    min_time = min(cell_ids_by_time.keys())
+    for t in range(min_time + 1, max_time):
+        for cell_id in cell_ids_by_time[t]:
+            node = (cell_id, t)
+            assert node in lineage_graph.nodes
+            if cell_id in cell_ids_by_time[t - 1]:
+                parent = (cell_id, t-1)
+            else:
+                found_parent = False
+                for parent_id, child_id in parent_links:
+                    if child_id == cell_id:
+                        parent = (int(parent_id), t-1)
+                        found_parent = True
+                        break
+                assert found_parent
+            assert parent in lineage_graph.nodes
+            lineage_graph.add_edge(parent, node)
     return lineage_graph
 
 def remap_graph_ids(lineage_graph, id_offset):
+    print("Checking lineage graph before removing nodes")
+    check_for_double_parents(lineage_graph)
     mapping = {}
     nodes_to_delete = []
     for node in lineage_graph.nodes():
@@ -113,8 +132,12 @@ def remap_graph_ids(lineage_graph, id_offset):
         else:
             nodes_to_delete.append(node)
     lineage_graph.remove_nodes_from(nodes_to_delete)
-
-    return nx.relabel_nodes(lineage_graph, mapping)
+    print("Checking lineage graph after removing nodes")
+    check_for_double_parents(lineage_graph)
+    relabeled = nx.relabel_nodes(lineage_graph, mapping)
+    print("Checking lineage graph after remapping")
+    check_for_double_parents(relabeled)
+    return relabeled
 
 def generate_video_sample(
     renderer,
@@ -132,15 +155,15 @@ def generate_video_sample(
     mask_ds = zarr_group.create_dataset("mask", shape=(num_scenes, *renderer.real_image.shape), dtype=mask_dtype) 
     max_id = 0
     id_offset = {} # time -> offset
-    for scene_no in range(burn_in, burn_in + num_scenes):
+    for scene_no in tqdm(range(burn_in, burn_in + num_scenes), desc="Rendering video frames"):
         image, mask, _ = renderer.generate_test_comparison(
-            media_multiplier=renderer.params.media_multiplier,
-            cell_multiplier=renderer.params.cell_multiplier,
-            device_multiplier=renderer.params.device_multiplier,
-            sigma=renderer.params.sigma,
-            match_fourier=renderer.params.match_fourier,
-            match_histogram=renderer.params.match_histogram,
-            match_noise=renderer.params.match_noise,
+            media_multiplier=renderer.params["media_multiplier"],
+            cell_multiplier=renderer.params["cell_multiplier"],
+            device_multiplier=renderer.params["device_multiplier"],
+            sigma=renderer.params["sigma"],
+            match_fourier=renderer.params["match_fourier"],
+            match_histogram=renderer.params["match_histogram"],
+            match_noise=renderer.params["match_noise"],
             debug_plot=False,
             noise_var=renderer.params["noise_var"],
             defocus=renderer.params["defocus"],
@@ -158,18 +181,24 @@ def generate_video_sample(
         id_offset[scene_no] = max_id
         mask[mask > 0] += max_id
         max_id = np.max(mask)
-        print(f"max_id in frame {scene_no} is {max_id}")
         mask_ds[scene_no - burn_in] = mask
     
     lineage_graph = remap_graph_ids(lineage_graph, id_offset)
-    with open(Path(output_zarr).with_suffix(".csv"), 'w') as f:
+    with open((Path(save_dir) / output_zarr).with_suffix(".csv"), 'w') as f:
         f.write("id,parent_id\n")
         for node in lineage_graph.nodes():
             parents = list(lineage_graph.predecessors(node))
-            assert len(parents) == 1
-            parent = parents[0]
-            f.write(f"{node},{parent}")
-            
+            assert len(parents) <= 1, f"node {node} has parents {parents}"
+            if len(parents) == 0:
+                parent = -1
+            else:
+                parent = parents[0]
+            f.write(f"{node},{parent}\n")
+    
+def check_for_double_parents(graph):
+    for node in graph.nodes():
+        parents = list(graph.predecessors(node))
+        assert len(parents) <= 1, f"node {node} has parents {parents}"
 
 if __name__ == "__main__":
     config = toml.load("configs/default.toml")
