@@ -189,6 +189,7 @@ def randomize_config_value(config, key):
 def randomize_config(config):
     randomize_config_value(config["simulation"], "cell_max_length")
     randomize_config_value(config["simulation"], "cell_width")
+    config["phase_image_stats"]["filepath"] = random.choice(config["phase_image_stats"]["filepath"])
     return config
 
 
