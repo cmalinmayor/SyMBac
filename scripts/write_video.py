@@ -15,9 +15,7 @@ from skimage.exposure import rescale_intensity
 import networkx as nx
 import skimage
 import argparse
-
-random.seed(100)
-np.random.seed(100065)
+import os
 
 
 def make_simulation(config, name):
@@ -86,7 +84,7 @@ def add_graph_edges(node_graph, simulation):
                         found_parent = True
                         break
                 assert found_parent
-            assert parent in lineage_graph.nodes
+            assert parent in lineage_graph.nodes, f"parent {parent} not in nodes {lineage_graph.nodes}"
             lineage_graph.add_edge(parent, node)
     return lineage_graph
 
@@ -111,6 +109,7 @@ def generate_video_sample(
     output_group,
     burn_in,
     num_scenes,
+    config,
     mask_dtype=np.uint64,
 ):
     lineage_graph = nx.DiGraph()
@@ -120,6 +119,7 @@ def generate_video_sample(
     zarr_group = zarr.open_group(
         zarr.DirectoryStore(Path(save_dir) / output_zarr, dimension_separator="/"), "w"
     )
+    zarr_group.attrs.update(config)
     image_ds = zarr_group.create_dataset(
         output_group, shape=(num_scenes, *renderer.real_image.shape), dtype=np.uint16
     )
@@ -155,6 +155,7 @@ def generate_video_sample(
         old_cell_ids = np.unique(mask)
         for cell_id in old_cell_ids:
             if cell_id != 0:
+                cell_id = int(cell_id)
                 new_cell_id = cell_id + max_id
                 cell_id_mapping[(cell_id, scene_no)] = new_cell_id
                 lineage_graph.add_node((cell_id, scene_no))
@@ -190,6 +191,8 @@ def randomize_config(config):
     randomize_config_value(config["simulation"], "cell_max_length")
     randomize_config_value(config["simulation"], "cell_width")
     config["phase_image_stats"]["filepath"] = random.choice(config["phase_image_stats"]["filepath"])
+    if "salmonella" in config["phase_image_stats"]["filepath"]:
+        config["simulation"]["trench_length"] = 22
     return config
 
 
@@ -197,6 +200,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("config")
     parser.add_argument("-n", "--name", default=None)
+    parser.add_argument("-s", "--seed", default=None, type=int)
     args = parser.parse_args()
     config = toml.load(args.config)
     if args.name is None:
@@ -206,6 +210,13 @@ if __name__ == "__main__":
             name = hash(config)
     else:
         name = args.name
+    if "LSB_JOBINDEX" in os.environ:
+        print(os.environ.get("LSB_JOBINDEX"))
+        name = name + "_" + str(os.environ.get("LSB_JOBINDEX"))
+
+    if args.seed is not None:
+        np.random.seed(args.seed)
+        random.seed(args.seed)
 
     config = randomize_config(config)
     print("Config", config)
@@ -223,5 +234,6 @@ if __name__ == "__main__":
         mask_dtype=np.uint64,
         output_zarr=output_zarr,
         output_group="phase",
+        config = config,
         **config["training_data"],
     )

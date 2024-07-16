@@ -3,15 +3,15 @@ name = "dataset1"
 [simulation]
 trench_length=15
 trench_width=1.15
-cell_max_length=[1.5,6] #6 long cells # 1.65 short cells
-cell_width= [0.89, 1] #1 long cells # 0.95 short cells
+cell_max_length=[1.5,6.0] #6 long cells # 1.65 short cells
+cell_width= [0.89, 1.0] #1 long cells # 0.95 short cells
 sim_length = 150
 pix_mic_conv = 0.065
 gravity=0
 phys_iters=15
-max_length_var = 1
+max_length_var = 0.5
 width_var = 0.05
-lysis_p = 0.05
+lysis_p = 0
 resize_amount = 3
 
 [phase_psf]
