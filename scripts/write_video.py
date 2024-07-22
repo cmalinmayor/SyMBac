@@ -210,9 +210,14 @@ if __name__ == "__main__":
             name = hash(config)
     else:
         name = args.name
+
     if "LSB_JOBINDEX" in os.environ:
-        print(os.environ.get("LSB_JOBINDEX"))
-        name = name + "_" + str(os.environ.get("LSB_JOBINDEX"))
+        job_index = os.environ.get("LSB_JOBINDEX")
+        print("LSB JOB INDEX:",  job_index)
+        print("LSB JOB INDEX type:",  type(job_index))
+        if job_index != "0":
+            name = str(job_index)
+    print(name)
 
     if args.seed is not None:
         np.random.seed(args.seed)
@@ -220,7 +225,6 @@ if __name__ == "__main__":
 
     config = randomize_config(config)
     print("Config", config)
-
     simulation = make_simulation(config["simulation"], name)
     phase_psf = make_psf(config["phase_psf"])
     camera = Camera(**config["camera"])

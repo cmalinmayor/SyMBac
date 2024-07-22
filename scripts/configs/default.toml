@@ -31,7 +31,7 @@ sensitivity=2.9
 dark_noise=8
 
 [phase_image_stats]
-filepath = ["images/220510_bsub_degron_rap_BF_raw.tif", "images/210214_salmonella_BF_raw.tif"]
+filepath = ["images/210214_salmonella_BF_raw_expanded.tif"]
 media_mean = 0.1
 media_var = 0.05
 cell_mean = 0.3
@@ -42,7 +42,7 @@ device_var = 0.01
 [training_data]
 burn_in=50
 num_scenes = 100
-save_dir="/nrs/funke/data/darts/synthetic_data/"
+save_dir="/nrs/funke/data/darts/synthetic_data/dataset1/"
 
 [renderer]
 media_multiplier=75
